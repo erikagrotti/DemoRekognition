@@ -1,0 +1,93 @@
+<div class="gallery-container">
+  <div class="gallery-header">
+    <div class="header-info">
+      <h2 class="gallery-title">
+        <mat-icon>photo_library</mat-icon>
+        Galeria de Fotos
+      </h2>
+      <p class="gallery-subtitle">{{ photos.length }} foto(s) • Reconhecimento facial ativo</p>
+    </div>
+    
+    <button mat-raised-button class="btn-primary upload-btn" (click)="fileInput.click()">
+      <mat-icon>add_photo_alternate</mat-icon>
+      Adicionar Fotos
+    </button>
+    <input #fileInput type="file" multiple accept="image/*" (change)="onFileSelected($event)" style="display: none;">
+  </div>
+
+  <div class="loading-section" *ngIf="loading">
+    <div class="loading-content">
+      <div class="loading-spinner">
+        <mat-spinner diameter="60" color="accent"></mat-spinner>
+      </div>
+      <h3>Processando fotos...</h3>
+      <p>Analisando faces e extraindo características</p>
+    </div>
+  </div>
+
+  <div class="photos-section" *ngIf="!loading && photos.length > 0">
+    <div class="photos-grid">
+      <div *ngFor="let photo of photos; trackBy: trackByPhotoId" 
+           class="photo-item modern-card scale-in">
+
+        <div class="photo-image-container">
+          <img [src]="photo.url" 
+               [alt]="'Foto ' + photo.id" 
+               class="photo-image"
+               loading="lazy"
+               (error)="onImageError($event, photo)"
+               (load)="onImageLoad(photo)">
+
+          <div class="debug-info" *ngIf="!photo.url">
+            <p>ID: {{ photo.id }}</p>
+            <p>URL: {{ photo.url || 'N/A' }}</p>
+          </div>
+
+          <div class="photo-actions">
+            <button mat-mini-fab class="action-btn view-btn" 
+                    (click)="viewPhoto(photo)"
+                    matTooltip="Visualizar">
+              <mat-icon>zoom_in</mat-icon>
+            </button>
+            <button mat-mini-fab class="action-btn delete-btn" 
+                    (click)="deletePhoto(photo.id)"
+                    [disabled]="!isAdmin"
+                    [matTooltip]="isAdmin ? 'Excluir' : 'Apenas administradores podem excluir'">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+        </div>
+
+        <div class="photo-info">
+          <div class="photo-meta">
+            <div class="upload-date">
+              <mat-icon>schedule</mat-icon>
+              <span>{{ photo.uploadDate | date:'dd/MM/yyyy HH:mm' }}</span>
+            </div>
+            
+            <div class="faces-count" *ngIf="photo.faces && photo.faces.length > 0">
+              <mat-icon>face</mat-icon>
+              <span>{{ photo.faces.length }} face(s)</span>
+            </div>
+          </div>
+          
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="empty-section" *ngIf="!loading && photos.length === 0">
+    <div class="empty-content">
+      <div class="empty-icon">
+        <mat-icon>photo_library</mat-icon>
+      </div>
+      <h3>Sua galeria está vazia</h3>
+      <p>Adicione suas primeiras fotos para começar a usar o reconhecimento facial</p>
+      <button mat-raised-button class="btn-primary" (click)="fileInput.click()">
+        <mat-icon>add_photo_alternate</mat-icon>
+        Adicionar Fotos
+      </button>
+    </div>
+  </div>
+</div>

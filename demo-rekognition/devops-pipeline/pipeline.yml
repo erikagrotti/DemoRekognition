@@ -1,0 +1,253 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Automate provisioning of CodeBuild with CodePipeline to deploy ECS Containers'
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Dependencies
+        Parameters:
+          - DevOpsBaselineStack
+
+      - Label:
+          default: Source Code 
+        Parameters:
+          - SourceRepositoryName
+          - RepositoryBranch
+
+      - Label:
+          default: Deployment 
+        Parameters:
+          - TargetAccountDeployerRole 
+          - TargetAccountEnvironment
+          - TargetStaticBucketName
+
+    
+    ParameterLabels:
+      DevOpsBaselineStack:
+        default: DevOps Baseline Stack
+      SourceRepositoryName: 
+        default: CodeCommit Repository
+      RepositoryBranch:
+        default: CodeCommit Development Branch
+      TargetAccountDeployerRole:
+        default: Target Account Deployer Role
+      TargetAccountEnvironment:
+        default: Target Account Environment
+      TargetStaticBucketName:
+        default: Target Static Bucket Name
+
+Parameters:
+  DevOpsBaselineStack:
+    Type: String
+    Default: devops-baseline
+    Description: The name of devops-baseline stack with all the roles to be used in pipeline
+
+  SourceRepositoryName:
+    Description: The name of the CodeCommit to be used in pipeline
+    Type: String
+
+  RepositoryBranch:
+    Description: The name of the branch to trigger pipeline
+    Type: String
+    Default:  master
+    AllowedPattern: "[\\x20-\\x7E]*"
+    ConstraintDescription: Can contain only ASCII characters.
+
+  TargetAccountDeployerRole:
+    Description: Deployer Role used during serverless deployment in target account
+    Type: String
+    Default: arn:aws:iam::764118143408:role/service-role/agemake-devops-client-dev-DeployerRole-1S26Y7F42AWZO
+
+  TargetAccountEnvironment:
+    Description: Environment Name
+    Type: String
+    Default: dev
+
+  TargetStaticBucketName:
+    Description: Target Static Bucket used by angular Application
+    Type: String
+
+  Environment:
+    Default: 'dev'
+    Description: Environment name
+    AllowedPattern: ^(dev|stg|prd)$
+    ConstraintDescription: "must be dev, stg or prd"
+    Type: String
+
+Resources:
+  AngularBuild:
+    Type: AWS::CodeBuild::Project
+    Properties:    
+      Name: !Sub ${AWS::StackName}-front
+      Description: Build Angular App
+      ServiceRole: 
+        Fn::ImportValue: !Sub ${DevOpsBaselineStack}-CodeBuildRoleArn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_LARGE
+        PrivilegedMode: false
+        Image: aws/codebuild/standard:7.0
+        EnvironmentVariables:
+          - Name: ENVIRONMENT
+            Value: !Ref TargetAccountEnvironment
+            Type: PLAINTEXT
+      Cache:
+        Type: S3
+        Location: !Sub 
+          - ${BucketName}/${Prefix}
+          - BucketName:
+              Fn::ImportValue: !Sub ${DevOpsBaselineStack}-CacheBucketName
+            Prefix: !Ref 'AWS::StackName'               
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                nodejs: 18
+            pre_build:
+              commands:
+                - echo Installing source NPM dependencies...
+                - cd frontend
+                - npm install
+                - npm install -g @angular/cli
+            build:
+              commands:
+                - echo $ENVIRONMENT
+                - echo Build started on `date` for environment $ENVIRONMENT
+                - ng build --configuration=$ENVIRONMENT
+
+          artifacts:
+            base-directory: 'frontend/dist/browser'
+            files:
+                - '**/*'
+
+          cache:
+            paths:
+              - 'frontend/node_modules/**/*'
+    
+      TimeoutInMinutes: 30
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-dependences
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: demo-rekognition
+        - Key: Owner
+          Value: Erika Grotti
+        - Key: CostCenter
+          Value: Erika Grotti
+        - Key: Backup
+          Value: 'No'
+        - Key: Project
+          Value: demo-rekognition
+
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties: 
+      ArtifactStore: 
+        Location: 
+          Fn::ImportValue: !Sub ${DevOpsBaselineStack}-ArtifactsBucketName
+        Type: S3
+        EncryptionKey: 
+          Id: 
+            Fn::ImportValue: !Sub ${DevOpsBaselineStack}-ArtifactsKeyArn
+          Type: KMS
+      Name: !Ref AWS::StackName
+      RestartExecutionOnUpdate: False
+      RoleArn: 
+        Fn::ImportValue: !Sub ${DevOpsBaselineStack}-CodePipelineRoleArn
+      Stages:
+        - Name: Source
+          Actions: 
+          - Name: Source
+            ActionTypeId: 
+              Category: Source
+              Owner: AWS
+              Provider: CodeCommit
+              Version: '1'
+            Configuration:
+              RepositoryName: !Ref SourceRepositoryName
+              BranchName: !Ref RepositoryBranch
+              PollForSourceChanges: False
+            Region: !Ref AWS::Region
+            RunOrder: 1
+            OutputArtifacts:
+              - Name: SourceArtifact
+              
+        - Name: DEPLOY_APP
+          Actions:
+          - Name: !Sub app-${TargetAccountEnvironment}-build
+            ActionTypeId:
+              Category: Build
+              Owner: AWS
+              Version: '1'
+              Provider: CodeBuild
+            InputArtifacts:
+              - Name: SourceArtifact
+            OutputArtifacts:
+              - Name: app-artifacts
+            Configuration:
+                ProjectName: !Ref AngularBuild
+            RunOrder: 1
+
+          - Name: !Sub app-${TargetAccountEnvironment}-deploy
+            RoleArn: !Ref TargetAccountDeployerRole
+            ActionTypeId:
+              Category: Deploy
+              Owner: AWS
+              Version: '1'
+              Provider: S3
+            InputArtifacts:
+              - Name: app-artifacts
+            Configuration:
+              BucketName: !Ref TargetStaticBucketName
+              CannedACL: bucket-owner-full-control
+              CacheControl: public, max-age=300
+              Extract: TRUE                  
+            RunOrder: 2
+      Tags:
+        - Key: Name
+          Value: !Ref AWS::StackName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: demo-rekognition
+        - Key: Owner
+          Value: Erika Grotti
+        - Key: CostCenter
+          Value: Erika Grotti
+        - Key: Backup
+          Value: 'No'
+        - Key: Project
+          Value: demo-rekognition
+
+  SourceCodeTrigger:
+    Type: AWS::Events::Rule
+    Properties:
+      EventPattern:
+        source:
+          - aws.codecommit
+        detail-type:
+          - 'CodeCommit Repository State Change'
+        resources:
+          - !Sub arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${SourceRepositoryName}
+        detail:
+          event:
+            - referenceCreated
+            - referenceUpdated
+          referenceType:
+            - branch
+          referenceName:
+            - !Ref RepositoryBranch
+      Targets:
+        - Arn: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${Pipeline} 
+          RoleArn: 
+            Fn::ImportValue: !Sub ${DevOpsBaselineStack}-CloudWatchRoleArn
+          Id: codepipeline  

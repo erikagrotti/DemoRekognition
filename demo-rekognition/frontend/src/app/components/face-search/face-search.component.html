@@ -1,0 +1,159 @@
+<div class="search-container">
+  <div class="search-header">
+    <div class="header-content">
+      <h2 class="search-title">
+        <mat-icon>person_search</mat-icon>
+        Busca Facial Inteligente
+      </h2>
+      <p class="search-description">
+        Faça upload de uma foto de referência para encontrar todas as imagens onde essa pessoa aparece
+      </p>
+    </div>
+  </div>
+
+  <div class="upload-section">
+    <div class="upload-area modern-card" 
+         (click)="fileInput.click()" 
+         (dragover)="onDragOver($event)" 
+         (drop)="onDrop($event)"
+         [class.drag-over]="isDragOver"
+         [class.has-file]="referencePhotoUrl">
+      
+      <div class="upload-content" *ngIf="!referencePhotoUrl">
+        <div class="upload-icon">
+          <mat-icon>cloud_upload</mat-icon>
+        </div>
+        <h3>Arraste uma foto aqui</h3>
+        <p>ou clique para selecionar</p>
+        <div class="supported-formats">
+          <span class="format-badge">JPG</span>
+          <span class="format-badge">PNG</span>
+          <span class="format-badge">GIF</span>
+        </div>
+        <button mat-raised-button class="btn-primary upload-btn">
+          <mat-icon>add_photo_alternate</mat-icon>
+          Selecionar Foto
+        </button>
+      </div>
+
+      <div class="reference-preview" *ngIf="referencePhotoUrl">
+        <div class="preview-image-container">
+          <img [src]="referencePhotoUrl" alt="Foto de referência" class="preview-image">
+          <div class="preview-overlay">
+            <button mat-mini-fab class="remove-btn" (click)="clearReference(); $event.stopPropagation()">
+              <mat-icon>close</mat-icon>
+            </button>
+          </div>
+        </div>
+        <div class="preview-info">
+          <h4>Foto de Referência</h4>
+          <p>Pronta para busca</p>
+        </div>
+      </div>
+    </div>
+    
+    <input #fileInput type="file" accept="image/*" (change)="onFileSelected($event)" style="display: none;">
+  </div>
+
+  <div class="search-actions" *ngIf="referencePhotoUrl && !searching">
+    <button mat-raised-button class="btn-primary search-btn" (click)="searchPhotos()">
+      <mat-icon>search</mat-icon>
+      Iniciar Busca
+    </button>
+  </div>
+
+  <div class="search-loading" *ngIf="searching">
+    <div class="loading-content">
+      <div class="loading-animation">
+        <mat-spinner diameter="60" color="accent"></mat-spinner>
+        <div class="loading-pulse"></div>
+      </div>
+      <h3>Analisando imagem...</h3>
+      <p>Comparando características faciais com a base de dados</p>
+      <div class="loading-steps">
+        <div class="step active">
+          <mat-icon>face</mat-icon>
+          <span>Detectando faces</span>
+        </div>
+        <div class="step active">
+          <mat-icon>analytics</mat-icon>
+          <span>Extraindo características</span>
+        </div>
+        <div class="step active">
+          <mat-icon>search</mat-icon>
+          <span>Comparando resultados</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-section" *ngIf="searchResults && !searching">
+    <div class="results-header">
+      <h3 class="results-title">
+        <mat-icon>photo_library</mat-icon>
+        Resultados Encontrados
+      </h3>
+      <div class="results-count">
+        <span class="count-number">{{ searchResults.totalCount }}</span>
+        <span class="count-text">foto(s) encontrada(s)</span>
+      </div>
+    </div>
+
+    <div class="results-grid" *ngIf="searchResults.photos.length > 0">
+      <div *ngFor="let photo of searchResults.photos; trackBy: trackByPhotoId" 
+           class="result-item modern-card scale-in">
+        
+        <div class="result-image-container">
+          <img [src]="photo.url" [alt]="'Resultado ' + photo.id" class="result-image">
+          
+          <div class="confidence-overlay">
+            <div class="match-badge">
+              <mat-icon>verified</mat-icon>
+              <span>Correspondência</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="result-info">
+          <div class="result-meta">
+            <div class="upload-date">
+              <mat-icon>schedule</mat-icon>
+              <span>{{ photo.uploadDate | date:'dd/MM/yyyy' }}</span>
+            </div>
+            <div class="faces-count" *ngIf="photo.faces && photo.faces.length > 1">
+              <mat-icon>group</mat-icon>
+              <span>{{ photo.faces.length }} pessoas</span>
+            </div>
+          </div>
+          
+          <button mat-button class="view-details-btn" (click)="viewPhoto(photo)">
+            <mat-icon>open_in_new</mat-icon>
+            Ver Detalhes
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="no-results" *ngIf="searchResults.photos.length === 0">
+      <div class="no-results-content">
+        <div class="no-results-icon">
+          <mat-icon>search_off</mat-icon>
+        </div>
+        <h3>Nenhuma correspondência encontrada</h3>
+        <p>Não encontramos fotos com essa pessoa na sua galeria.</p>
+        <div class="suggestions">
+          <h4>Sugestões:</h4>
+          <ul>
+            <li>Tente com uma foto mais clara</li>
+            <li>Certifique-se de que o rosto está bem visível</li>
+            <li>Adicione mais fotos à sua galeria</li>
+          </ul>
+        </div>
+        <button mat-raised-button class="btn-secondary" (click)="clearReference()">
+          <mat-icon>refresh</mat-icon>
+          Tentar Novamente
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

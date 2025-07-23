@@ -1,0 +1,381 @@
+.liveness-container {
+  min-height: 100vh;
+  background: var(--background-black);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.liveness-card {
+  background: var(--gradient-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 24px;
+  padding: 40px;
+  max-width: 600px;
+  width: 100%;
+  text-align: center;
+  box-shadow: var(--shadow-dark);
+}
+
+/* Header */
+.liveness-header {
+  margin-bottom: 32px;
+  
+  .header-icon {
+    width: 80px;
+    height: 80px;
+    background: var(--gradient-orange);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 24px;
+    box-shadow: var(--shadow-orange);
+    
+    mat-icon {
+      font-size: 40px;
+      width: 40px;
+      height: 40px;
+      color: white;
+    }
+  }
+  
+  h2 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 12px 0;
+  }
+  
+  p {
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin: 0;
+    line-height: 1.5;
+  }
+}
+
+/* Erro */
+.error-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(220, 53, 69, 0.1);
+  border: 1px solid rgba(220, 53, 69, 0.3);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 24px;
+  color: #dc3545;
+  font-size: 14px;
+  
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* Vídeo */
+.video-section {
+  margin-bottom: 32px;
+}
+
+.video-container {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto 24px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #000;
+  border: 3px solid var(--border-color);
+  transition: border-color 0.3s ease;
+  
+  &.recording {
+    border-color: var(--primary-orange);
+    box-shadow: 0 0 20px rgba(254, 118, 14, 0.3);
+  }
+}
+
+.video-element {
+  width: 100%;
+  height: auto;
+  display: block;
+  transform: scaleX(-1); /* Espelhar para parecer natural */
+}
+
+.video-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.instruction-box {
+  text-align: center;
+  padding: 20px;
+  
+  h3 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0 0 16px 0;
+  }
+  
+  .countdown {
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--primary-orange);
+    margin-bottom: 16px;
+    animation: pulse 1s ease-in-out infinite;
+  }
+  
+  .step-indicator {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.8);
+    background: rgba(255, 255, 255, 0.1);
+    padding: 4px 12px;
+    border-radius: 12px;
+    display: inline-block;
+  }
+}
+
+.recording-indicator {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(220, 53, 69, 0.9);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  
+  .recording-dot {
+    width: 8px;
+    height: 8px;
+    background: white;
+    border-radius: 50%;
+    animation: blink 1s ease-in-out infinite;
+  }
+}
+
+/* Controles */
+.controls {
+  display: flex;
+  justify-content: center;
+  
+  .start-btn {
+    height: 56px !important;
+    padding: 0 32px !important;
+    font-size: 18px !important;
+    font-weight: 600 !important;
+    
+    mat-icon {
+      margin-right: 8px;
+    }
+  }
+}
+
+/* Loading */
+.loading-section {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+  padding: 40px 20px;
+  text-align: center;
+  
+  mat-spinner {
+    margin: 0 auto 24px auto;
+    display: block;
+    
+    ::ng-deep circle {
+      stroke: var(--primary-orange);
+    }
+  }
+  
+  h3 {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 8px 0;
+  }
+  
+  p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+}
+
+/* Sucesso */
+.success-section {
+  padding: 40px 20px;
+  
+  .success-icon {
+    width: 100px;
+    height: 100px;
+    background: linear-gradient(135deg, #28a745, #20c997);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 24px;
+    animation: scaleIn 0.5s ease-out;
+    
+    mat-icon {
+      font-size: 48px;
+      width: 48px;
+      height: 48px;
+      color: white;
+    }
+  }
+  
+  h3 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 12px 0;
+  }
+  
+  p {
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin: 0 0 24px 0;
+  }
+  
+  .success-animation {
+    .checkmark {
+      font-size: 32px;
+      color: #28a745;
+      animation: bounce 0.6s ease-out;
+    }
+  }
+}
+
+/* Animações */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+@keyframes scaleIn {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-10px);
+  }
+  60% {
+    transform: translateY(-5px);
+  }
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .liveness-container {
+    padding: 16px;
+  }
+  
+  .liveness-card {
+    padding: 24px;
+  }
+  
+  .liveness-header {
+    .header-icon {
+      width: 60px;
+      height: 60px;
+      
+      mat-icon {
+        font-size: 30px;
+        width: 30px;
+        height: 30px;
+      }
+    }
+    
+    h2 {
+      font-size: 22px;
+    }
+    
+    p {
+      font-size: 14px;
+    }
+  }
+  
+  .video-container {
+    max-width: 100%;
+  }
+  
+  .instruction-box {
+    padding: 16px;
+    
+    h3 {
+      font-size: 18px;
+    }
+    
+    .countdown {
+      font-size: 36px;
+    }
+  }
+  
+  .controls .start-btn {
+    width: 100%;
+    max-width: 280px;
+  }
+}
+
+@media (max-width: 480px) {
+  .liveness-card {
+    padding: 20px;
+  }
+  
+  .instruction-box {
+    padding: 12px;
+    
+    h3 {
+      font-size: 16px;
+    }
+    
+    .countdown {
+      font-size: 28px;
+    }
+  }
+}

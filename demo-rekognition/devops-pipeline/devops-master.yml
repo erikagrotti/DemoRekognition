@@ -1,0 +1,708 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Configure DevOps infrastructure to be used in DevOps Client accounts.'
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: CodeBuild Params
+        Parameters:
+          - DockerHubSecretArn 
+          - DockerHubSecretName
+      - Label:
+          default: Accounts
+        Parameters:
+          - DevAccount
+          - StgAccount
+          - PrdAccount
+
+    ParameterLabels:
+      DockerHubSecretArn:
+        default: DockerHub Secret Arn
+      DockerHubSecretName:
+        default: DockerHub Secret Name
+      DevAccount:
+        default: Development Account
+      StgAccount:
+        default: Staging Account
+      PrdAccount:
+        default: Production Account
+      
+Parameters:
+  DevAccount:
+    Default: ''
+    Description: Development Account Number
+    AllowedPattern: (^$|[0-9]{12})
+    ConstraintDescription: "must be a valid account number or empty"
+    Type: String
+
+  StgAccount:
+    Default: '466995862261'
+    Description: Development Account Number
+    AllowedPattern: (^$|[0-9]{12})
+    ConstraintDescription: "must be a valid account number or empty"
+    Type: String
+
+  PrdAccount:
+    Default: '327732600537'
+    Description: Development Account Number
+    AllowedPattern: (^$|[0-9]{12})
+    ConstraintDescription: "must be a valid account number or empty"
+    Type: String
+
+  DockerHubSecretArn:
+    Description: DockerHub Secret Arn, is a SSM Secret that will be granted access to CodeBuild
+    Type: String
+
+  DockerHubSecretName:
+    Description: DockerHub Secret Name, is a SSM Secret that will be used during builds in CodeBuild
+    Type: String
+
+Conditions:
+  DevAccountCondition: !Not [ !Equals [ !Ref DevAccount, '' ] ]  
+  StgAccountCondition: !Not [ !Equals [ !Ref StgAccount, '' ] ]  
+  PrdAccountCondition: !Not [ !Equals [ !Ref PrdAccount, '' ] ]  
+  DockerHubSecretArnCondition: !Not [ !Equals [ !Ref DockerHubSecretArn, '' ] ]  
+  DockerHubSecretNameCondition: !Not [ !Equals [ !Ref DockerHubSecretName, '' ] ]  
+
+Resources:
+  MergeRequestTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-MergeRequestTopic
+        - Key: Application
+          Value: demo-rekognition
+        - Key: Owner
+          Value: Erika Grotti
+        - Key: CostCenter
+          Value: Erika Grotti
+        - Key: Backup
+          Value: 'No'
+        - Key: Project
+          Value: demo-rekognition
+
+  PushNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-PushNotificationTopic
+        - Key: Application
+          Value: demo-rekognition
+        - Key: Owner
+          Value: Erika Grotti
+        - Key: CostCenter
+          Value: Erika Grotti
+        - Key: Backup
+          Value: 'No'
+        - Key: Project
+          Value: demo-rekognition
+
+  ApprovalRequestTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-ApprovalRequestTopic
+        - Key: Application
+          Value: demo-rekognition
+        - Key: Owner
+          Value: Erika Grotti
+        - Key: CostCenter
+          Value: Erika Grotti
+        - Key: Backup
+          Value: 'No'
+        - Key: Project
+          Value: demo-rekognition
+
+  CloudFormationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - cloudformation.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/service-role/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-CloudFormationRole
+        - Key: Application
+          Value: demo-rekognition
+        - Key: Owner
+          Value: Erika Grotti
+        - Key: CostCenter
+          Value: Erika Grotti
+        - Key: Backup
+          Value: 'No'
+        - Key: Project
+          Value: demo-rekognition
+
+  ArtifactsBucket:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Type: AWS::S3::Bucket
+    Properties: 
+      LifecycleConfiguration:
+        Rules:
+          - Id: !Sub ${AWS::StackName}-auto-cleanup
+            ExpirationInDays: 30
+            Status: Enabled        
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-artifactsbucket
+        - Key: Application
+          Value: demo-rekognition
+        - Key: Owner
+          Value: Erika Grotti
+        - Key: CostCenter
+          Value: Erika Grotti
+        - Key: Backup
+          Value: 'No'
+        - Key: Project
+          Value: demo-rekognition
+
+  CacheBucket:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Type: AWS::S3::Bucket
+    Properties: 
+      LifecycleConfiguration:
+        Rules:
+          - Id: !Sub ${AWS::StackName}-auto-cleanup
+            ExpirationInDays: 30
+            Status: Enabled    
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-cachebucket
+        - Key: Application
+          Value: demo-rekognition
+        - Key: Owner
+          Value: Erika Grotti
+        - Key: CostCenter
+          Value: Erika Grotti
+        - Key: Backup
+          Value: 'No'
+        - Key: Project
+          Value: demo-rekognition
+
+  ArtifactsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactsBucket
+      PolicyDocument:
+        Statement:
+          - Sid: DenyUnEncryptedObjectUploads
+            Effect: Deny
+            Principal: "*"
+            Action: s3:PutObject
+            Resource: !Sub "arn:aws:s3:::${ArtifactsBucket}/*"
+            Condition:
+              StringNotEquals:
+                s3:x-amz-server-side-encryption: aws:kms
+          - Sid: DenyInsecureConnections
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource: !Sub "arn:aws:s3:::${ArtifactsBucket}/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+          - Sid: AllowCrossAccountAccess
+            Effect: "Allow"
+            Action:
+              - s3:GetObject
+              - s3:GetObjectVersion
+            Resource: !Sub "arn:aws:s3:::${ArtifactsBucket}/*"
+            Principal:
+              AWS: 
+                - !If [ DevAccountCondition, !Sub "arn:aws:iam::${DevAccount}:root", !Ref AWS::NoValue ]
+                - !If [ StgAccountCondition, !Sub "arn:aws:iam::${StgAccount}:root", !Ref AWS::NoValue ]
+                - !If [ PrdAccountCondition, !Sub "arn:aws:iam::${PrdAccount}:root", !Ref AWS::NoValue ]
+
+  ArtifactsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: DevOps CodePipeline symmetric key for cross account deployment and cross region
+      MultiRegion: true
+      KeyPolicy:
+        Version: '2012-10-17'
+        Id: key-default-1
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal: 
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: 
+              - kms:*
+            Resource: '*'
+          - Sid: Allow use of the key
+            Effect: Allow
+            Principal:
+              AWS:  
+                - !GetAtt CodePipelineRole.Arn
+                - !If [ DevAccountCondition, !Sub "arn:aws:iam::${DevAccount}:root", !Ref AWS::NoValue ]
+                - !If [ StgAccountCondition, !Sub "arn:aws:iam::${StgAccount}:root", !Ref AWS::NoValue ]
+                - !If [ PrdAccountCondition, !Sub "arn:aws:iam::${PrdAccount}:root", !Ref AWS::NoValue ]
+            Action: 
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: '*'
+          - Sid: Allow attachment of persistent resources
+            Effect: Allow
+            Principal:
+              AWS:  
+                - !GetAtt CodePipelineRole.Arn
+                - !If [ DevAccountCondition, !Sub "arn:aws:iam::${DevAccount}:root", !Ref AWS::NoValue ]
+                - !If [ StgAccountCondition, !Sub "arn:aws:iam::${StgAccount}:root", !Ref AWS::NoValue ]
+                - !If [ PrdAccountCondition, !Sub "arn:aws:iam::${PrdAccount}:root", !Ref AWS::NoValue ]
+            Action: 
+             - kms:CreateGrant
+             - kms:ListGrants
+             - kms:RevokeGrant
+            Resource: '*'   
+            Condition:
+              Bool:
+                "kms:GrantIsForAWSResource": true
+      Tags:
+        - Key: Application
+          Value: demo-rekognition
+        - Key: Owner
+          Value: Erika Grotti
+        - Key: CostCenter
+          Value: Erika Grotti
+        - Key: Backup
+          Value: 'No'
+        - Key: Project
+          Value: demo-rekognition
+
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - codebuild.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/service-role/"
+      Policies:
+      - PolicyName: codebuild-service
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action: "*"
+            Resource: "*"          
+      - PolicyName: codebuild-ecr
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - ecr:BatchCheckLayerAvailability
+            - ecr:CompleteLayerUpload
+            - ecr:GetAuthorizationToken
+            - ecr:InitiateLayerUpload
+            - ecr:PutImage
+            - ecr:UploadLayerPart
+            Resource: "*"  
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-CodeBuildRole
+        - Key: Application
+          Value: demo-rekognition
+        - Key: Owner
+          Value: Erika Grotti
+        - Key: CostCenter
+          Value: Erika Grotti
+        - Key: Backup
+          Value: 'No'
+        - Key: Project
+          Value: demo-rekognition
+
+  DockerHubSecretPolicy:
+    Type: AWS::IAM::Policy
+    Condition: DockerHubSecretArnCondition
+    Properties:
+      PolicyName: dockerhub-secret
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action:
+            - secretsmanager:GetSecretValue
+            Resource: 
+            - !If [ DockerHubSecretArnCondition, !Ref DockerHubSecretArn, !Ref 'AWS::NoValue' ]
+      Roles: 
+        - !Ref CodeBuildRole
+
+  CodeDeployRole: 
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codedeploy.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/service-role/"
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/AWSCodeDeployRoleForECS
+      Policies:
+        - PolicyName: codepipeline-service
+          PolicyDocument:
+            Statement:
+              - Action:
+                - s3:GetObject
+                - s3:GetObjectVersion
+                - s3:GetBucketVersioning
+                Resource: "*"
+                Effect: Allow
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-CodeDeployRole
+        - Key: Application
+          Value: demo-rekognition
+        - Key: Owner
+          Value: Erika Grotti
+        - Key: CostCenter
+          Value: Erika Grotti
+        - Key: Backup
+          Value: 'No'
+        - Key: Project
+          Value: demo-rekognition
+
+  CodePipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - codepipeline.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/service-role/"
+      Policies:
+      - PolicyName: codepipeline-service
+        PolicyDocument:
+          Statement:
+          - Action:
+            - codecommit:GetBranch
+            - codecommit:GetCommit
+            - codecommit:UploadArchive
+            - codecommit:GetUploadArchiveStatus
+            - codecommit:CancelUploadArchive
+            - codebuild:*
+            - codestar-connections:PassConnection
+            Resource: "*"
+            Effect: Allow
+          - Action:
+            - s3:*         
+            Resource: "*"
+            Effect: Allow
+          - Action:
+            - s3:PutObject
+            Resource:
+            - arn:aws:s3:::codepipeline*
+            - arn:aws:s3:::elasticbeanstalk*
+            Effect: Allow
+          - Action:
+            - codedeploy:CreateDeployment
+            - codedeploy:GetApplicationRevision
+            - codedeploy:GetDeployment
+            - codedeploy:GetDeploymentConfig
+            - codedeploy:RegisterApplicationRevision
+            Resource: "*"
+            Effect: Allow
+          - Action:
+            - elasticbeanstalk:*
+            - ec2:*
+            - elasticloadbalancing:*
+            - autoscaling:*
+            - cloudwatch:*
+            - s3:*
+            - sns:*
+            - cloudformation:*
+            - rds:*
+            - sqs:*
+            - ecs:*
+            - ecr:*
+            - iam:PassRole
+            Resource: "*"
+            Effect: Allow
+          - Action:
+            - lambda:InvokeFunction
+            - lambda:ListFunctions
+            Resource: "*"
+            Effect: Allow
+          Version: '2012-10-17'
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-CodePipelineRole
+        - Key: Application
+          Value: demo-rekognition
+        - Key: Owner
+          Value: Erika Grotti
+        - Key: CostCenter
+          Value: Erika Grotti
+        - Key: Backup
+          Value: 'No'
+        - Key: Project
+          Value: demo-rekognition
+
+  CloudWatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /service-role/
+      Policies:
+        - PolicyName: cwe-pipeline-execution
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: codepipeline:StartPipelineExecution
+                Resource: "*"
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-CloudWatchRole
+        - Key: Application
+          Value: demo-rekognition
+        - Key: Owner
+          Value: Erika Grotti
+        - Key: CostCenter
+          Value: Erika Grotti
+        - Key: Backup
+          Value: 'No'
+        - Key: Project
+          Value: demo-rekognition
+
+  DenyChangesToMasterPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: Policy that denies push to master branches
+      Path: /
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Deny
+            Action:
+              - codecommit:GitPush
+              - codecommit:DeleteBranch
+              - codecommit:PutFile
+              - codecommit:MergeBranchesByFastForward
+              - codecommit:MergeBranchesBySquash
+              - codecommit:MergeBranchesByThreeWay
+              - codecommit:MergePullRequestByFastForward
+              - codecommit:MergePullRequestBySquash
+              - codecommit:MergePullRequestByThreeWay
+            Resource: 
+              - '*'
+            Condition:
+              StringEqualsIfExists:
+                codecommit:References:
+                  - refs/heads/master
+                  - refs/heads/prod
+              'Null':
+                codecommit:References: false
+
+  AssumeRoleDevPolicy:
+    Type: AWS::IAM::Policy
+    Condition: DevAccountCondition
+    Properties:
+      PolicyName: dev_assume_role
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Resource: 
+              - !Sub "arn:aws:iam::${DevAccount}:role/*"
+      Roles: 
+        - !Ref CodePipelineRole
+        - !Ref CodeDeployRole
+
+  AssumeRoleStgPolicy:
+    Type: AWS::IAM::Policy
+    Condition: StgAccountCondition
+    Properties:
+      PolicyName: stg_assume_role
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Resource: 
+              - !Sub "arn:aws:iam::${StgAccount}:role/*"
+      Roles: 
+        - !Ref CodePipelineRole
+        - !Ref CodeDeployRole
+
+  AssumeRolePrdPolicy:
+    Type: AWS::IAM::Policy
+    Condition: PrdAccountCondition
+    Properties:
+      PolicyName: prd_assume_role
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Resource: 
+              - !Sub "arn:aws:iam::${PrdAccount}:role/*"
+      Roles: 
+        - !Ref CodePipelineRole
+        - !Ref CodeDeployRole
+
+Outputs:
+  DevAccountId:
+    Condition: DevAccountCondition
+    Value: !Ref DevAccount
+    Description: Development Account Id
+    Export:
+      Name: !Sub ${AWS::StackName}-DevAccountId
+
+  StgAccountId:
+    Condition: StgAccountCondition
+    Value: !Ref StgAccount
+    Description: Staging Account Id
+    Export:
+      Name: !Sub ${AWS::StackName}-StgAccountId
+
+  PrdAccountId:
+    Condition: PrdAccountCondition
+    Value: !Ref PrdAccount
+    Description: Production Account Id
+    Export:
+      Name: !Sub ${AWS::StackName}-PrdAccountId
+
+  ArtifactsBucketName:
+    Value: !Ref ArtifactsBucket
+    Description: Bucket for CodePipeline artifacts
+    Export:
+      Name: !Sub ${AWS::StackName}-ArtifactsBucketName
+  
+  ArtifactsKeyArn:
+    Value: !GetAtt ArtifactsKey.Arn
+    Description: ArtifactsKey Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-ArtifactsKeyArn
+
+  CacheBucketName:
+    Value: !Ref CacheBucket
+    Description: Bucket for Cache CodeBuild artifacts
+    Export:
+      Name: !Sub ${AWS::StackName}-CacheBucketName
+
+  CodePipelineRoleArn:
+    Value: !GetAtt CodePipelineRole.Arn
+    Description: CodePipeline Service Role Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-CodePipelineRoleArn
+
+  CodeDeployRoleArn:
+    Value: !GetAtt CodeDeployRole.Arn
+    Description: CodeDeploy Service Role Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-CodeDeployRoleArn      
+
+  CodeBuildRoleArn:
+    Value: !GetAtt CodeBuildRole.Arn
+    Description: CodeBuild Service Role Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-CodeBuildRoleArn  
+
+  CloudWatchRoleArn:
+    Value: !GetAtt CloudWatchRole.Arn
+    Description: CloudWatch Service Role Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-CloudWatchRoleArn  
+
+  DenyChangesToMasterPolicyArn:
+    Value: !Ref DenyChangesToMasterPolicy
+    Description: Policy that denies changes to master
+    Export:
+      Name: !Sub ${AWS::StackName}-DenyChangesToMasterPolicyArn       
+
+  CloudFormationRoleArn:
+    Value: !GetAtt CloudFormationRole.Arn
+    Description: CloudFormation Role used by DevOps Account
+    Export:
+      Name: 
+        Fn::Sub: ${AWS::StackName}-CloudFormationRoleArn        
+
+  MergeRequestTopicArn:
+    Value: !Ref MergeRequestTopic
+    Description: Merge Request Topic for Repositories
+    Export:
+      Name: 
+        Fn::Sub: ${AWS::StackName}-MergeRequestTopicArn  
+
+  PushNotificationTopicArn:
+    Value: !Ref PushNotificationTopic
+    Description: Push Notification Topic for Repositories
+    Export:
+      Name: 
+        Fn::Sub: ${AWS::StackName}-PushNotificationTopicArn  
+
+  ApprovalRequestTopicArn:
+    Value: !Ref ApprovalRequestTopic
+    Description: Approval Request Topic for Repositories
+    Export:
+      Name: 
+        Fn::Sub: ${AWS::StackName}-ApprovalRequestTopicArn  
+
+  DockerHubSecretArn:
+    Condition: DockerHubSecretArnCondition
+    Value: !Ref DockerHubSecretArn
+    Description: DockerHub Secret Arn
+    Export:
+      Name: 
+        Fn::Sub: ${AWS::StackName}-DockerHubSecretArn  
+
+  DockerHubSecretName:
+    Condition: DockerHubSecretNameCondition
+    Value: !Ref DockerHubSecretName
+    Description: DockerHub Secret Name
+    Export:
+      Name: 
+        Fn::Sub: ${AWS::StackName}-DockerHubSecretName

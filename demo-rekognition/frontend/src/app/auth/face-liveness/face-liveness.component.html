@@ -1,0 +1,70 @@
+<div class="liveness-container">
+  <div class="liveness-card">
+    <!-- Header -->
+    <div class="liveness-header">
+      <div class="header-icon">
+        <mat-icon>face_retouching_natural</mat-icon>
+      </div>
+      <h2>Verificação de Vivacidade</h2>
+      <p>Para sua segurança, precisamos verificar que você é uma pessoa real</p>
+    </div>
+
+    <!-- Erro -->
+    <div class="error-message" *ngIf="error">
+      <mat-icon>error</mat-icon>
+      <span>{{ error }}</span>
+    </div>
+
+    <!-- Área de vídeo -->
+    <div class="video-section" *ngIf="!livenessVerified">
+      <div class="video-container" [class.recording]="isRecording">
+        <video #videoElement autoplay muted playsinline class="video-element"></video>
+        <canvas #canvasElement style="display: none;"></canvas>
+        
+        <!-- Overlay de instruções -->
+        <div class="video-overlay" *ngIf="isRecording">
+          <div class="instruction-box">
+            <h3>{{ currentInstruction }}</h3>
+            <div class="countdown" *ngIf="countdown > 0">{{ countdown }}</div>
+            <div class="step-indicator">
+              Passo {{ step }} de {{ maxSteps }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Indicador de gravação -->
+        <div class="recording-indicator" *ngIf="isRecording">
+          <div class="recording-dot"></div>
+          <span>Gravando</span>
+        </div>
+      </div>
+
+      <!-- Botões de controle -->
+      <div class="controls" *ngIf="!isRecording && !isLoading">
+        <button mat-raised-button class="btn-primary start-btn" (click)="startLivenessCheck()">
+          <mat-icon>videocam</mat-icon>
+          Iniciar Verificação
+        </button>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading-section" *ngIf="isLoading">
+      <mat-spinner diameter="60" color="accent"></mat-spinner>
+      <h3>{{ isRecording ? 'Processando...' : 'Verificando vivacidade...' }}</h3>
+      <p>Aguarde enquanto analisamos sua autenticidade</p>
+    </div>
+
+    <!-- Sucesso -->
+    <div class="success-section" *ngIf="livenessVerified">
+      <div class="success-icon">
+        <mat-icon>verified_user</mat-icon>
+      </div>
+      <h3>Verificação Concluída!</h3>
+      <p>Sua identidade foi verificada com sucesso</p>
+      <div class="success-animation">
+        <div class="checkmark">✓</div>
+      </div>
+    </div>
+  </div>
+</div>

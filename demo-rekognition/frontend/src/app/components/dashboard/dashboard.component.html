@@ -1,0 +1,101 @@
+<div class="dashboard-container">
+  <header class="modern-header">
+    <div class="header-content">
+      <div class="logo-section">
+        <div class="logo-icon">
+          <mat-icon>auto_awesome</mat-icon>
+        </div>
+        <div class="logo-text">
+          <h1 class="app-title">Rekognition</h1>
+          <span class="app-subtitle">AI Vision</span>
+        </div>
+      </div>
+      
+      <div class="user-section">
+        <div class="user-info">
+          <span class="welcome-text">Olá, <span class="text-gradient">{{ userName }}</span></span>
+          <span class="user-role" *ngIf="userGroup === 'Admin'">
+            <mat-icon>admin_panel_settings</mat-icon>
+            Administrador
+          </span>
+        </div>
+        <button mat-icon-button class="user-menu-btn" [matMenuTriggerFor]="userMenu">
+          <div class="user-avatar-container">
+            <img *ngIf="userPhoto" [src]="userPhoto" class="user-avatar" alt="Avatar">
+            <mat-icon *ngIf="!userPhoto" class="default-avatar">account_circle</mat-icon>
+          </div>
+        </button>
+        
+        <mat-menu #userMenu="matMenu" class="user-menu">
+          <button mat-menu-item (click)="logout()" class="logout-btn">
+            <mat-icon>logout</mat-icon>
+            <span>Sair</span>
+          </button>
+        </mat-menu>
+      </div>
+    </div>
+  </header>
+
+  <main class="dashboard-main">
+    <div class="hero-section" *ngIf="showWelcome">
+      <div class="hero-content fade-in-up">
+        <div class="hero-icon">
+          <mat-icon>psychology</mat-icon>
+        </div>
+        <h1 class="hero-title">
+          Bem-vindo ao <span class="text-gradient">Rekognition AI</span>
+        </h1>
+        <p class="hero-description">
+          Tecnologia de reconhecimento facial avançada para organizar e encontrar pessoas em suas fotos.
+          Faça upload de suas imagens e deixe a IA fazer o trabalho por você.
+        </p>
+        <div class="hero-features">
+          <div class="feature-item">
+            <mat-icon>face</mat-icon>
+            <span>Detecção Facial</span>
+          </div>
+          <div class="feature-item">
+            <mat-icon>search</mat-icon>
+            <span>Busca Inteligente</span>
+          </div>
+          <div class="feature-item">
+            <mat-icon>analytics</mat-icon>
+            <span>Análise Avançada</span>
+          </div>
+        </div>
+        <button mat-raised-button class="btn-primary hero-btn" (click)="hideWelcome()">
+          <mat-icon>rocket_launch</mat-icon>
+          Começar Agora
+        </button>
+      </div>
+    </div>
+
+    <div class="tabs-container" *ngIf="!showWelcome">
+      <mat-tab-group class="modern-tabs" animationDuration="300ms">
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <div class="tab-label">
+              <mat-icon>photo_library</mat-icon>
+              <span>Galeria</span>
+            </div>
+          </ng-template>
+          <div class="tab-content">
+            <app-photo-gallery></app-photo-gallery>
+          </div>
+        </mat-tab>
+
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <div class="tab-label">
+              <mat-icon>person_search</mat-icon>
+              <span>Buscar</span>
+            </div>
+          </ng-template>
+          <div class="tab-content">
+            <app-face-search></app-face-search>
+          </div>
+        </mat-tab>
+      </mat-tab-group>
+    </div>
+  </main>
+</div>

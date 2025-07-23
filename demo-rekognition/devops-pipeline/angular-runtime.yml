@@ -1,0 +1,482 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Static Website Infrastructure for Angular SPA with Upload Capabilities
+Parameters:
+  HostedZoneId:
+    Description: Required to register HostName automatically, otherwise must configure
+      DNS in your current provider
+    Type: String
+
+  WebsiteHostName:
+    Description: Host Name, leave empty to have one generated
+    Type: String
+    Default: ''
+    MinLength: '0'
+    MaxLength: '200'
+    ConstraintDescription: 'must be a valid host name, eg: app.mywebsite.com'  
+
+  CertificateArn:
+    Type: String
+    Default: ''
+    Description: "ACM Certificate Arn, eg: arn:aws:acm:${AWS::REGION}:${AWS::ACCOUNT}:certificate/9e50ea95-8325-41bf-b318-8ec0fbcc70bb"    
+
+  DeployerRoleArn:
+    Type: String
+    Default: ''
+    Description: "CodeBuild/CodeDeploy Role from DevOps Account that should be able to deploy to static bucket"       
+
+  Environment:
+    Default: 'dev'
+    Description: Environment name
+    AllowedPattern: ^(dev|stg|prd)$
+    ConstraintDescription: "must be dev, stg or prd"
+    Type: String
+
+  DevOpsAccount:
+    Default: ''
+    Description: DevOps Account Number
+    AllowedPattern: (^$|[0-9]{12})
+    ConstraintDescription: "must be a valid account number or empty"
+    Type: String
+
+  ArtifactsBucketName:
+    Description: Artifacts bucket name
+    Type: String
+
+  ArtifactsKeyArn:
+    Description: Artifacts KMS Key Arn
+    Type: String   
+    
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Network Configuration
+      Parameters:
+      - HostedZoneId
+      - WebsiteHostName
+    ParameterLabels:     
+      WebsiteHostName:
+        default: Website Host Name
+      HostedZoneId:
+        default: Hosted Zone Name      
+    
+Conditions:
+  HasWebsiteHostName:
+    Fn::Not:
+    - Fn::Equals:
+      - ''
+      - Ref: WebsiteHostName
+  HasHostedZoneId:
+    Fn::Not:
+    - Fn::Equals:
+      - ''
+      - Ref: HostedZoneId
+  UseDnsRegistration:
+    Fn::And:
+    - Condition: HasWebsiteHostName
+    - Condition: HasHostedZoneId
+  UseMultiAccount:
+    Fn::Not:
+    - Fn::Equals:
+      - ''
+      - Ref: DeployerRoleArn
+  UseSingleAccount:
+    Fn::Equals:
+    - ''
+    - Ref: DeployerRoleArn      
+
+Resources:
+  DNSRecord:
+    Type: AWS::Route53::RecordSet    
+    Condition: UseDnsRegistration
+    Properties:
+      HostedZoneId:
+        Fn::If:
+        - UseDnsRegistration
+        - Ref: HostedZoneId
+        - Ref: AWS::NoValue 
+      Name: !Ref WebsiteHostName
+      Type: A
+      AliasTarget:
+        HostedZoneId: 
+        DNSName: !GetAtt CloudFrontDistribution.DomainName        
+
+  Identity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: !Sub ${AWS::StackName}
+
+  StaticBucket:
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+      OwnershipControls:
+        Rules:
+        - ObjectOwnership: BucketOwnerPreferred        
+      WebsiteConfiguration:
+        ErrorDocument: index.html
+        IndexDocument: index.html   
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-staticbucket
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: demo-rekognition
+        - Key: Owner
+          Value: Erika Grotti
+        - Key: CostCenter
+          Value: Erika Grotti
+        - Key: Backup
+          Value: 'No'
+        - Key: Project
+          Value: demo-rekognition
+
+  StaticBucketSingleAccountPolicy:
+    Type: "AWS::S3::BucketPolicy"
+    Condition: UseSingleAccount
+    Properties:
+      Bucket: !Ref StaticBucket
+      PolicyDocument:
+        Statement:
+          - Action:
+              - "s3:GetObject"
+            Effect: "Allow"
+            Resource: !Sub "arn:aws:s3:::${StaticBucket}/*"
+            Principal:
+              CanonicalUser: !GetAtt Identity.S3CanonicalUserId
+
+  StaticBucketMultiAccountPolicy:
+    Type: "AWS::S3::BucketPolicy"
+    Condition: UseMultiAccount
+    Properties:
+      Bucket: !Ref StaticBucket
+      PolicyDocument:
+        Statement:
+          - Action:
+              - "s3:GetObject"
+            Effect: "Allow"
+            Resource: !Sub "arn:aws:s3:::${StaticBucket}/*"
+            Principal:
+              CanonicalUser: !GetAtt Identity.S3CanonicalUserId
+          - Action:
+              - "s3:*"
+            Effect: "Allow"
+            Resource: 
+              - !Sub "arn:aws:s3:::${StaticBucket}/*"
+              - !Sub "arn:aws:s3:::${StaticBucket}"
+            Principal:
+              AWS: !Ref DeployerRoleArn
+
+  UploadBucket:
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Type: AWS::S3::Bucket
+    Properties:   
+      WebsiteConfiguration:
+        ErrorDocument: index.html
+        IndexDocument: index.html
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-uploadbucket
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: demo-rekognition
+        - Key: Owner
+          Value: Erika Grotti
+        - Key: CostCenter
+          Value: Erika Grotti
+        - Key: Backup
+          Value: 'No'
+        - Key: Project
+          Value: demo-rekognition
+
+  UploadBucketPolicy:
+    Type: "AWS::S3::BucketPolicy"
+    Properties:
+      Bucket: !Ref UploadBucket
+      PolicyDocument:
+        Statement:
+          - Action:
+              - "s3:GetObject"
+            Effect: "Allow"
+            Resource: !Sub "arn:aws:s3:::${UploadBucket}/*"
+            Principal:
+              CanonicalUser: !GetAtt Identity.S3CanonicalUserId
+
+  TmpBucket:
+    DeletionPolicy: Delete
+    Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - Id: !Sub ${AWS::StackName}-auto-cleanup
+            ExpirationInDays: 1
+            Status: Enabled
+      CorsConfiguration:
+        CorsRules:
+          - AllowedMethods: [PUT]
+            AllowedOrigins: ['*']
+            AllowedHeaders: ['*']
+            MaxAge: 86400
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-tmpbucket
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: demo-rekognition
+        - Key: Owner
+          Value: Erika Grotti
+        - Key: CostCenter
+          Value: Erika Grotti
+        - Key: Backup
+          Value: 'No'
+        - Key: Project
+          Value: demo-rekognition
+
+# https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-cloudfront-distribution.html
+
+  CloudFrontDistribution:
+    DependsOn: Identity
+    Type: 'AWS::CloudFront::Distribution'
+    Properties:
+      DistributionConfig:
+        Aliases: 
+          - Ref: WebsiteHostName
+        IPV6Enabled: true
+        CustomErrorResponses:
+          - ErrorCode: 400
+            ErrorCachingMinTTL: 300            
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 403
+            ErrorCachingMinTTL: 300            
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 404
+            ErrorCachingMinTTL: 300            
+            ResponseCode: 200
+            ResponsePagePath: /404                        
+        Origins:
+          - Id: StaticBucket
+            DomainName: !GetAtt StaticBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${Identity}" 
+          - Id: UploadBucket
+            DomainName: !GetAtt UploadBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${Identity}"             
+        DefaultCacheBehavior:
+          Compress: true
+          AllowedMethods:
+          - HEAD
+          - DELETE
+          - POST
+          - GET
+          - OPTIONS
+          - PUT
+          - PATCH
+          CachedMethods:
+          - GET
+          - HEAD
+          - OPTIONS
+          TargetOriginId: StaticBucket
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          ViewerProtocolPolicy: redirect-to-https           
+          MinTTL: 0
+          DefaultTTL: 3600
+          MaxTTL: 31536000                   
+        CacheBehaviors:      
+        - PathPattern: upload/*
+          AllowedMethods:
+          - GET
+          - HEAD
+          - OPTIONS
+          TargetOriginId: UploadBucket
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: none
+          ViewerProtocolPolicy: redirect-to-https
+          MinTTL: 86400
+          MaxTTL: 31536000   
+
+        Enabled: true  
+        HttpVersion: http2
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateArn
+          SslSupportMethod: sni-only 
+          MinimumProtocolVersion: TLSv1.1_2016
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Application
+          Value: demo-rekognition
+        - Key: Owner
+          Value: Erika Grotti
+        - Key: CostCenter
+          Value: Erika Grotti
+        - Key: Backup
+          Value: 'No'
+        - Key: Project
+          Value: demo-rekognition
+
+  DeployerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Role that allows assume role by DevOps Account
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            AWS:
+              - !Sub "arn:aws:iam::${DevOpsAccount}:root"
+          Action:
+          - sts:AssumeRole
+      Path: "/service-role/"
+
+  DevOpsDeployerPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: deployer_policy
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - cloudformation:*
+          - iam:PassRole
+          Resource: "*"
+        - Effect: Allow
+          Action:
+          - ecs:DescribeServices
+          - ecs:DescribeTaskDefinition
+          - ecs:DescribeTasks
+          - ecs:ListTasks
+          - ecs:RegisterTaskDefinition
+          - ecs:UpdateService
+          Resource: "*"
+        - Effect: Allow
+          Action:
+          - s3:Get*
+          - s3:Put*
+          Resource:
+          - !Sub "arn:aws:s3:::${ArtifactsBucketName}/*"
+        - Effect: Allow
+          Action:
+          - s3:ListBucket
+          Resource:
+          - !Sub "arn:aws:s3:::${ArtifactsBucketName}"
+        - Effect: Allow
+          Action:
+          - kms:DescribeKey
+          - kms:GenerateDataKey*
+          - kms:Encrypt
+          - kms:ReEncrypt*
+          - kms:Decrypt
+          Resource:
+          - !Ref ArtifactsKeyArn       
+        # novas 
+        - Effect: Allow
+          Action:
+          - iam:Get*
+          - iam:List*
+          - iam:*Role*
+          - iam:CreatePolicy
+          - iam:DeletePolicy
+          - iam:*PolicyVersion*
+          - iam:*InstanceProfile*
+          Resource: 
+          - '*'
+        - Effect: Allow # To Get and Put deployment artifacts in serverless deployment bucket
+          Action:
+          - s3:*
+          Resource:
+          - '*'
+        - Effect: Allow # To create CF stack for serverless deployment
+          Action:
+          - cloudformation:*
+          Resource: '*'
+        - Effect: Allow
+          Action:
+          - states:*
+          Resource: '*'
+        - Effect: Allow # API Gateway
+          Action:
+          - apigateway:*
+          Resource: '*'
+        - Effect: Allow # Lambda
+          Action:
+          - lambda:*
+          Resource: '*'
+        - Effect: Allow # DynamoDB
+          Action:
+          - dynamodb:*
+          Resource: 
+          - '*'
+        - Effect: Allow # Simple Notification Service
+          Action:
+          - sns:*
+          Resource: 
+          - '*'
+        - Effect: Allow # Simple Queue Service
+          Action:
+          - sqs:*
+          Resource: 
+          - '*'
+        - Effect: Allow # Simple Email Service
+          Action:
+          - ses:*
+          Resource: 
+          - '*'          
+        - Effect: Allow # To access cloudwatch logs
+          Action:
+          - cloudwatch:*
+          - logs:*
+          - events:*
+          Resource: 
+          - '*'          
+
+      Roles: 
+        - !Ref DeployerRole
+
+
+Outputs:
+  DeployerRoleArn:
+    Value: !GetAtt DeployerRole.Arn
+    Description: Deployer Role used by DevOps Account
+    Export:
+      Name: 
+        Fn::Sub: ${AWS::StackName}-DeployerRoleArn      
+  AppHostUrl:
+    Value: !Sub https://${WebsiteHostName}
+    Description: App Host Url  
+  CloudFrontUrl:
+    Value: !Sub https://${CloudFrontDistribution.DomainName}
+    Description: CloudFront Url
+  CloudFrontIdentityUserId:
+    Value: !GetAtt Identity.S3CanonicalUserId
+    Description: CloudFront Identity
+  StaticBucketName:
+    Value: !Ref StaticBucket
+    Description: Name of S3 bucket to hold landing page content
+    Export:
+      Name: !Sub ${AWS::StackName}-StaticBucketName  
+  UploadBucketName:
+    Value: !Ref UploadBucket
+    Description: Name of S3 bucket to hold long term assets uploaded by user
+  TmpBucketName:
+    Value: !Ref TmpBucket
+    Description: Name of S3 bucket to hold temporary assets uploaded by user   
